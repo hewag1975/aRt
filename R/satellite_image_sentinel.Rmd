@@ -1,0 +1,92 @@
+---
+title: "satellite_image_sentinel"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(mapedit)
+library(mapview)
+library(ggplot2)
+library(mdseo)
+library(stars)
+library(sf)
+
+lonlat2UTM = function(lonlat) {
+  utm = (floor((lonlat[1] + 180) / 6) %% 60) + 1
+  if(lonlat[2] > 0) {
+    utm + 32600
+  } else{
+    utm + 32700
+  }
+}
+```
+
+
+## AOI
+
+```{r}
+aoi = mapedit::editMap()
+# st_write(aoi, dsn = "aoi_pucon.geojson")
+# st_write(aoi, dsn = "aoi_putre.geojson")
+# st_write(aoi, dsn = "aoi_karijini.geojson")
+```
+
+
+## Sentinel data
+
+```{r, eval = FALSE}
+gdalcubes::gdalcubes_options(threads = parallel::detectCores() - 1)
+# aoi_name = "karijini"
+# aoi_name = "putre"
+aoi_name = "pucon"
+
+aoi = st_read(paste0("aoi_", aoi_name, ".geojson"))
+
+utm = st_centroid(aoi) |> 
+  st_coordinates() |> 
+  lonlat2UTM()
+
+rc = prepAOI(aoi, crs_cube = utm) |> 
+  defineCube(cube_opts = cubeOpts(dx = 100, dt = "P4D")) |> 
+  listCollections() |> 
+  rasterCube() |> 
+  st_as_stars() |> 
+  cleanCube(which = 3)
+
+readr::write_rds(rc, file = paste0("data/rc_", aoi_name, ".rds"), compress = "gz")
+rc = readr::read_rds(file = paste0("data/rc_", aoi_name, ".rds"))
+
+rc_b2d = rc |> 
+  stars::st_as_stars() |> 
+  # bands to dimension
+  merge() |> 
+  setNames(nm = "value") |> 
+  stars::st_set_dimensions(which = 4, names = "band")
+
+# true/false color image
+plot(rc_b2d[,,, 7,], rgb = 4:2)
+rc_b2d_hex = rc_b2d[,,, 6, 4:2] |> 
+  # abind::adrop(drop = 3) |> 
+  stars::st_rgb(dimension = 4
+                , maxColorValue = 65000
+                , probs = c(0.01, 0.99)
+                , stretch = TRUE) 
+
+ggplot() +
+  stars::geom_stars(data = rc_b2d_hex) + 
+  scale_fill_identity() + 
+  coord_equal() + 
+  theme_void()
+
+ggsave(paste0("img/", aoi_name, ".jpg")
+       , device = "jpeg"
+       , width = 600
+       , height = 400
+       , units = "mm"
+       , dpi = "print")
+```
+
