@@ -8,6 +8,8 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+gdalcubes::gdalcubes_options(threads = parallel::detectCores() - 1)
+
 library(mapedit)
 library(mapview)
 library(ggplot2)
@@ -38,11 +40,97 @@ aoi = mapedit::editMap()
 
 ## Sentinel data
 
-```{r, eval = FALSE}
-gdalcubes::gdalcubes_options(threads = parallel::detectCores() - 1)
-# aoi_name = "karijini"
+### Karijini National Park
+
+```{r karijini_aoi, eval = FALSE}
+aoi_name = "karijini"
+aoi = st_read(paste0("aoi_", aoi_name, ".geojson"))
+utm = st_centroid(aoi) |> 
+  st_coordinates() |> 
+  lonlat2UTM()
+
+aoi = prepAOI(aoi, crs_cube = utm)
+```
+
+Image assessment...
+
+```{r karijini_pre, eval = FALSE}
+rc = cube_def = cubeOpts() |> 
+  defineCube(cube_opts = cubeOpts(
+    dx = 250
+    , dt = "P4D"
+    , period = c("2021-10-01", "2021-10-31")
+  )
+  ) |> 
+  listCollections() |> 
+  rasterCube() |> 
+  st_as_stars() |> 
+  cleanCube(which = 3)
+
+readr::write_rds(rc, file = paste0("data/rc_", aoi_name, "_pre.rds"), compress = "gz")
+rc = readr::read_rds(file = paste0("data/rc_", aoi_name, "_pre.rds"))
+
+rc_b2d = rc |> 
+  stars::st_as_stars() |> 
+  # bands to dimension
+  merge() |> 
+  setNames(nm = "value") |> 
+  stars::st_set_dimensions(which = 4, names = "band")
+
+plot(rc_b2d[,,,6], rgb = 4:2)
+```
+
+
+```{r karijini, eval = FALSE}
+rc = cube_def = cubeOpts() |> 
+  defineCube(cube_opts = cubeOpts(
+    dx = 10
+    , period = c("2021-10-27", "2021-10-30")
+  )
+  ) |> 
+  listCollections() |> 
+  rasterCube() |> 
+  st_as_stars() |> 
+  abind::adrop()
+
+readr::write_rds(rc, file = paste0("data/rc_", aoi_name, ".rds"), compress = "gz")
+rc = readr::read_rds(file = paste0("data/rc_", aoi_name, ".rds"))
+
+rc_b2d = rc |> 
+  stars::st_as_stars() |> 
+  # bands to dimension
+  merge() |> 
+  setNames(nm = "value") |> 
+  stars::st_set_dimensions(which = 3, names = "band")
+
+# true/false color image
+# plot(rc_b2d, rgb = 4:2)
+
+rc_b2d_hex = rc_b2d[,,, 4:2] |> 
+  stars::st_rgb(dimension = 3
+                , maxColorValue = 65000
+                , probs = c(0.01, 0.99)
+                , stretch = TRUE) 
+
+p = ggplot() +
+  stars::geom_stars(data = rc_b2d_hex) + 
+  scale_fill_identity() + 
+  coord_equal() + 
+  theme_void()
+
+ggsave(paste0("img/", aoi_name, ".jpg")
+       , plot = p
+       , device = "jpeg"
+       , width = 600
+       , height = 400
+       , units = "mm"
+       , dpi = "print")
+```
+
+
+```{r putre, eval = FALSE}
 # aoi_name = "putre"
-aoi_name = "pucon"
+# aoi_name = "pucon"
 
 aoi = st_read(paste0("aoi_", aoi_name, ".geojson"))
 
@@ -51,11 +139,16 @@ utm = st_centroid(aoi) |>
   lonlat2UTM()
 
 rc = prepAOI(aoi, crs_cube = utm) |> 
-  defineCube(cube_opts = cubeOpts(dx = 100, dt = "P4D")) |> 
+  defineCube(cube_opts = cubeOpts(
+    dx = 10
+    # , dt = "P4D"
+    # , period = c("2021-06-01", "2021-09-30")
+    , period = c("2021-10-27", "2021-10-30")
+  )
+  ) |> 
   listCollections() |> 
   rasterCube() |> 
-  st_as_stars() |> 
-  cleanCube(which = 3)
+  st_as_stars() 
 
 readr::write_rds(rc, file = paste0("data/rc_", aoi_name, ".rds"), compress = "gz")
 rc = readr::read_rds(file = paste0("data/rc_", aoi_name, ".rds"))
@@ -68,8 +161,9 @@ rc_b2d = rc |>
   stars::st_set_dimensions(which = 4, names = "band")
 
 # true/false color image
-plot(rc_b2d[,,, 7,], rgb = 4:2)
-rc_b2d_hex = rc_b2d[,,, 6, 4:2] |> 
+st_get_dimension_values(rc, which = 3)
+plot(rc_b2d[,,,6], rgb = 4:2)
+rc_b2d_hex = rc_b2d[,,, 1, 4:2] |> 
   # abind::adrop(drop = 3) |> 
   stars::st_rgb(dimension = 4
                 , maxColorValue = 65000
