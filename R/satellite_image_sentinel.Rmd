@@ -10,11 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 gdalcubes::gdalcubes_options(threads = parallel::detectCores() - 1)
 
+# devtools::install_github("r-spatial/stars")
+library(stars)
 library(mapedit)
 library(mapview)
 library(ggplot2)
 library(mdseo)
-library(stars)
+library(tmap)
 library(sf)
 
 lonlat2UTM = function(lonlat) {
@@ -32,9 +34,10 @@ lonlat2UTM = function(lonlat) {
 
 ```{r}
 aoi = mapedit::editMap()
-# st_write(aoi, dsn = "aoi_pucon.geojson")
-# st_write(aoi, dsn = "aoi_putre.geojson")
-# st_write(aoi, dsn = "aoi_karijini.geojson")
+# st_write(aoi, dsn = "aoi_eastern_alps.geojson", delete_dsn = TRUE)
+# st_write(aoi, dsn = "aoi_pucon.geojson", delete_dsn = TRUE)
+# st_write(aoi, dsn = "aoi_putre.geojson", delete_dsn = TRUE)
+# st_write(aoi, dsn = "aoi_karijini.geojson", delete_dsn = TRUE)
 ```
 
 
@@ -55,13 +58,14 @@ aoi = prepAOI(aoi, crs_cube = utm)
 Image assessment...
 
 ```{r karijini_pre, eval = FALSE}
-rc = cube_def = cubeOpts() |> 
-  defineCube(cube_opts = cubeOpts(
-    dx = 250
+rc = defineCube(
+  aoi
+  , cube_opts = cubeOpts(
+    dx = 100
     , dt = "P4D"
-    , period = c("2021-10-01", "2021-10-31")
+    , period = c("2020-01-01", "2020-12-31")
   )
-  ) |> 
+) |> 
   listCollections() |> 
   rasterCube() |> 
   st_as_stars() |> 
@@ -82,12 +86,13 @@ plot(rc_b2d[,,,6], rgb = 4:2)
 
 
 ```{r karijini, eval = FALSE}
-rc = cube_def = cubeOpts() |> 
-  defineCube(cube_opts = cubeOpts(
+rc = defineCube(
+  aoi
+  , cube_opts = cubeOpts(
     dx = 10
     , period = c("2021-10-27", "2021-10-30")
   )
-  ) |> 
+) |> 
   listCollections() |> 
   rasterCube() |> 
   st_as_stars() |> 
@@ -128,24 +133,58 @@ ggsave(paste0("img/", aoi_name, ".jpg")
 ```
 
 
-```{r putre, eval = FALSE}
-# aoi_name = "putre"
-# aoi_name = "pucon"
+### Putre Chilenean Coast
 
+```{r putre_aoi, eval = FALSE}
+aoi_name = "putre"
 aoi = st_read(paste0("aoi_", aoi_name, ".geojson"))
-
 utm = st_centroid(aoi) |> 
   st_coordinates() |> 
   lonlat2UTM()
 
-rc = prepAOI(aoi, crs_cube = utm) |> 
-  defineCube(cube_opts = cubeOpts(
-    dx = 10
+aoi = prepAOI(aoi, crs_cube = utm)
+```
+
+```{r putre_pre, eval = FALSE}
+rc = defineCube(
+  aoi
+  , cube_opts = cubeOpts(
+    dx = 250
+    , aggregation = "min"
     # , dt = "P4D"
-    # , period = c("2021-06-01", "2021-09-30")
+    , period = c("2021-06-01", "2021-06-30")
+  )
+) |> 
+  listCollections() |> 
+  rasterCube() |> 
+  st_as_stars() # |> 
+  # cleanCube(which = 3)
+
+readr::write_rds(rc, file = paste0("data/rc_", aoi_name, "_pre.rds"), compress = "gz")
+rc = readr::read_rds(file = paste0("data/rc_", aoi_name, "_pre.rds"))
+
+rc_b2d = rc |> 
+  stars::st_as_stars() |> 
+  # bands to dimension
+  merge() |> 
+  setNames(nm = "value") |> 
+  stars::st_set_dimensions(which = 4, names = "band")
+
+plot(rc_b2d, rgb = 3:1)
+
+dim(rc_b2d)
+st_get_dimension_values(rc_b2d, which = 3)
+
+```
+
+```{r putre, eval = FALSE}
+rc = defineCube(
+  aoi
+  , cube_opts = cubeOpts(
+    dx = 10
     , period = c("2021-10-27", "2021-10-30")
   )
-  ) |> 
+) |> 
   listCollections() |> 
   rasterCube() |> 
   st_as_stars() 
@@ -164,12 +203,20 @@ rc_b2d = rc |>
 st_get_dimension_values(rc, which = 3)
 plot(rc_b2d[,,,6], rgb = 4:2)
 rc_b2d_hex = rc_b2d[,,, 1, 4:2] |> 
-  # abind::adrop(drop = 3) |> 
   stars::st_rgb(dimension = 4
                 , maxColorValue = 65000
                 , probs = c(0.01, 0.99)
                 , stretch = TRUE) 
 
+rc_b2d_hex |> 
+  tm_shape() + 
+  tm_raster()
+
+rc[,,, 1] |> 
+  tm_shape() + 
+  tm_rgb(r = 4, g = 3, b = 2)
+
+  
 ggplot() +
   stars::geom_stars(data = rc_b2d_hex) + 
   scale_fill_identity() + 
