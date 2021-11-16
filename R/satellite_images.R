@@ -2,7 +2,6 @@ gdalcubes::gdalcubes_options(threads = parallel::detectCores() - 1)
 
 # devtools::install_github("r-spatial/stars")
 library(stars)
-library(mapedit)
 library(mapview)
 library(ggplot2)
 library(mdseo)
@@ -117,5 +116,42 @@ ggsave(paste0("img/", aoi_name, ".jpg")
        , dpi = "print")
 
 
+## AOI plot ----
+rc = readr::read_rds(paste0("data/rc_", aoi_name, "_pre.rds"))
+names(rc) = gsub(
+    "file117b1ef1f1e2.nc.."
+    , replacement = ""
+    , x = names(rc)
+)
 
+rc_tmap = rc[,,,6] |>
+    merge() |>
+    setNames(nm = "value") |>
+    abind::adrop()
+
+rc_tmap = st_apply(
+    rc_tmap
+    , MARGIN = 3
+    , scales::rescale
+    , to = c(0, 255)
+)
+
+tm_shape(
+    rc_tmap
+) +
+    tm_rgb(r = 4, g = 3, b = 2) +
+    tm_grid(
+        labels.rot = c(0, 90)
+        , labels.col = "gray80"
+    ) +
+    # tm_graticules(n.x = 10, n.y = 10) +
+    tm_layout(
+        main.title = "Zugspitze, Bavaria"
+        , main.title.color = "gray80"
+        , main.title.position = c('right', 'top')
+        , main.title.size = 1
+        , frame = "white"
+        , frame.lwd = 2
+        , outer.bg.color = "black"
+    )
 
