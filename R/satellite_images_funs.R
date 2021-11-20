@@ -13,7 +13,7 @@ aoi_explore_images = \(
     , dx
     , dt
 ){
-    defineCube(
+    rc = defineCube(
         aoi
         , cube_opts = cubeOpts(
             dx = dx
@@ -23,6 +23,7 @@ aoi_explore_images = \(
     ) |>
         listCollections() |>
         rasterCube() |>
-        st_as_stars() #|>
-        #cleanCube(which = 3)
+        st_as_stars()
+
+    setNames(rc, nm = c("B02", "B03", "B04", "B08", "SCL"))
 }

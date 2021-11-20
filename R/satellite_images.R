@@ -11,9 +11,13 @@ library(sf)
 source("R/satellite_images_funs.R")
 
 ## AOI definition and preparation ----
-aoi_name = "karijini"
-aoi_name = "eastern_alps"
-aoi_name = "zugspitze"
+aoi_name = "putre"
+date = "2021-10-28" # Putre
+
+# aoi_name = "karijini"
+# aoi_name = "eastern_alps"
+# aoi_name = "zugspitze"
+
 # aoi = mapedit::editMap()
 # st_write(
 #     aoi
@@ -21,8 +25,12 @@ aoi_name = "zugspitze"
 #     , delete_dsn = TRUE
 # )
 
-fls = list.files("aoi", pattern = "\\.geojson", full.names = TRUE)
-aoi = st_read(fls[5])
+fls = list.files(
+    "aoi"
+    , pattern = "\\.geojson"
+    , full.names = TRUE
+)
+aoi = st_read(fls[4])
 utm = st_centroid(aoi) |>
     st_coordinates() |>
     lonlat2UTM()
@@ -39,7 +47,6 @@ rc = aoi_explore_images(
 )
 
 rc = cleanCube(rc, which = 3)
-st_get_dimension_values(rc, which = 3)
 
 readr::write_rds(
     rc
@@ -56,78 +63,48 @@ rc_b2d = rc |>
     setNames(nm = "value") |>
     stars::st_set_dimensions(which = 4, names = "band")
 
-# plot(rc_b2d)
-plot(rc_b2d[,,,6], rgb = 4:2)
-plot(rc_b2d[,,,27], rgb = 3:1)
+plot(rc_b2d)
+st_get_dimension_values(rc_b2d, which = 3)[30]
+plot(rc_b2d[,,,4], rgb = 4:2)
 
 
 ## AOI image ----
 rc = aoi_explore_images(
     aoi
-    , period = c("2020-01-01", "2020-12-31")
+    , period = c("2021-10-28", "2021-10-28")
     , dx = 10
     , dt = "P1D"
 )
 
 readr::write_rds(
     rc
-    , file = paste0("data/rc_", aoi_name, ".rds")
+    , file = paste0("data/rc_", aoi_name, "_", date, ".rds")
     , compress = "gz"
 )
 
-rc = readr::read_rds(paste0("data/rc_", aoi_name, ".rds"))
-
-rc_b2d = rc |>
-    stars::st_as_stars() |>
-    # bands to dimension
-    merge() |>
-    setNames(nm = "value") |>
-    stars::st_set_dimensions(which = 3, names = "band")
-
-# true/false color image
-# plot(rc_b2d, rgb = 4:2)
-
-rc_b2d_hex = rc_b2d[,,, 4:2] |>
-    stars::st_rgb(dimension = 3
-                  , maxColorValue = 65000
-                  , probs = c(0.01, 0.99)
-                  , stretch = TRUE)
-
-# rc_b2d_hex |>
-#     tm_shape() +
-#     tm_raster()
-#
-# rc[,,, 1] |>
-#     tm_shape() +
-#     tm_rgb(r = 4, g = 3, b = 2)
-
-p = ggplot() +
-    stars::geom_stars(data = rc_b2d_hex) +
-    scale_fill_identity() +
-    coord_equal() +
-    theme_void()
-
-ggsave(paste0("img/", aoi_name, ".jpg")
-       , plot = p
-       , device = "jpeg"
-       , width = 600
-       , height = 400
-       , units = "mm"
-       , dpi = "print")
-
 
 ## AOI plot ----
-rc = readr::read_rds(paste0("data/rc_", aoi_name, "_pre.rds"))
-names(rc) = gsub(
-    "file117b1ef1f1e2.nc.."
-    , replacement = ""
-    , x = names(rc)
-)
+### tmap ----
+rc = readr::read_rds(paste0("data/rc_", aoi_name, "_", date, ".rds"))
+rc$SCL = NULL
 
-rc_tmap = rc[,,,6] |>
+dim(rc)
+rc = rc[,,500:6300]
+
+# st_get_dimension_values(rc, which = 3)
+# plot(rc)
+
+rc_tmap = rc |>
     merge() |>
     setNames(nm = "value") |>
     abind::adrop()
+
+rc_tmap = st_apply(
+    rc_tmap
+    , MARGIN = 3
+    , FUN = \(i) ifelse(i > 8000, 8000, i)
+    # , log
+)
 
 rc_tmap = st_apply(
     rc_tmap
@@ -136,22 +113,75 @@ rc_tmap = st_apply(
     , to = c(0, 255)
 )
 
-tm_shape(
+tmap_options("max.raster" = c(plot = 1e+08))
+
+tm = tm_shape(
     rc_tmap
+    , raster.downsample = TRUE
 ) +
+    # tm_rgb(r = 3, g = 2, b = 1) +
     tm_rgb(r = 4, g = 3, b = 2) +
     tm_grid(
         labels.rot = c(0, 90)
-        , labels.col = "gray80"
+        , labels.col = "gray20"
+        , labels.size = 1.25
+        , n.x = 5
+        , n.y = 3
     ) +
-    # tm_graticules(n.x = 10, n.y = 10) +
     tm_layout(
-        main.title = "Zugspitze, Bavaria"
-        , main.title.color = "gray80"
-        , main.title.position = c('right', 'top')
-        , main.title.size = 1
+        title = "Sentinel-2 (ESA) image\nAcquisition: 2021-10-28"
+        , title.size = 1
+        , title.position = c("left", "bottom")
+        , title.color = "gray80"
+        , main.title = "Arica - Putre, Northern Chile"
+        , main.title.color = "gray20"
+        , main.title.position = c("right", "top")
+        , main.title.size = 2
         , frame = "white"
         , frame.lwd = 2
-        , outer.bg.color = "black"
+        , outer.bg.color = "white"
     )
 
+# tm
+
+tmap_save(
+    tm
+    , filename = paste0("img/", aoi_name, "2.jpg")
+    , width = 1200
+    , height = 400
+    , units = "mm"
+    , dpi = 300
+)
+
+
+### ggplot ----
+rc = readr::read_rds(paste0("data/rc_", aoi_name, "_", date, ".rds"))
+
+rc_b2d = rc |>
+    stars::st_as_stars() |>
+    # bands to dimension
+    merge() |>
+    setNames(nm = "value") |>
+    stars::st_set_dimensions(which = 3, names = "band")
+
+rc_b2d_hex = rc_b2d[,,, 4:2] |>
+    stars::st_rgb(dimension = 3
+                  , maxColorValue = 65000
+                  , probs = c(0.01, 0.99)
+                  , stretch = TRUE)
+
+p = ggplot() +
+    stars::geom_stars(data = rc_b2d_hex) +
+    scale_fill_identity() +
+    coord_equal() +
+    theme_void()
+
+ggsave(
+    paste0("img/", aoi_name, ".jpg")
+    , plot = p
+    , device = "jpeg"
+    , width = 900
+    , height = 600
+    , units = "mm"
+    , dpi = "print"
+)
