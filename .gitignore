@@ -42,3 +42,4 @@ vignettes/*.pdf
 # data and img
 *.jpg
 *.rds
+*.pdf
