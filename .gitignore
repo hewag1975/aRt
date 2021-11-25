@@ -43,3 +43,4 @@ vignettes/*.pdf
 *.jpg
 *.rds
 *.pdf
+*.svg
