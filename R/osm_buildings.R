@@ -19,11 +19,8 @@ library(ggmap)
 
 
 ## data extraction ----
-available_features()
-available_tags("highway")
-available_tags("water")
-
-bbox = getbb("Nuremberg")
+# bbox = getbb("Laufamholz")
+bbox = getbb("Nürnberg")
 
 # bbox = sf::st_bbox(
 #     c(xmin = 11.01
@@ -32,17 +29,45 @@ bbox = getbb("Nuremberg")
 #       , ymin = 49.54
 #     )
 # )
+
+available_features()
+available_tags("building")
+
+# tg = "water"
+# tg = "waterway"
+# tg = "natural"
+# tg = "landuse"
+# tg = "boundary"
 #
-feat = opq(bbox) |>
+# feat = opq(bbox) |>
+#     add_osm_feature(
+#         key = tg
+#         , value = available_tags(tg)
+#     ) |>
+#     osmdata_sf()
+#
+# mapview::mapview(feat$osm_lines)
+# mapview::mapview(feat$osm_polygons)
+
+bld = opq(bbox) |>
     add_osm_feature(
-        key = "water"
-        , value = available_tags("water")
+        key = "building"
+        , value = c(
+            "apartments"
+            , "commercial"
+            , "detached"
+            , "house"
+            , "residential"
+            , "retail"
+            , "semidetached_house"
+            , "terrace"
+            , "yes"
+        )
     ) |>
     osmdata_sf()
 
-mapview::mapview(feat$osm_lines)
-mapview::mapview(feat$osm_polygons)
-# plot(sf::st_geometry(major$osm_lines))
+# mapview::mapview(bld$osm_polygons)
+# mapview::mapview(bld$osm_points)
 
 major = opq(bbox) |>
     add_osm_feature(
@@ -70,21 +95,6 @@ minor = opq(bbox) |>
     ) |>
     osmdata_sf()
 
-small = opq(bbox) |>
-    add_osm_feature(
-        key = "highway"
-        , value = c(
-            "residential"
-            , "living_street"
-            , "unclassified"
-            , "service"
-            , "footway"
-            , "corridor"
-            , "bridleway"
-        )
-    ) |>
-    osmdata_sf()
-
 river = opq(bbox) |>
     add_osm_feature(
         key = "waterway"
@@ -99,26 +109,21 @@ railway = opq(bbox) |>
 
 ## plotting ----
 font_add_google(name = "Lato", family = "lato")
+showtext_opts(dpi = 300)
 showtext_auto(enable = TRUE)
 
-bg = "white"
+# bg = "white"
+# col = "black"
+
 bg = "black"
-col = "black"
 col = "white"
 
-ggplot() +
+p = ggplot() +
     geom_sf(
         data = river$osm_lines
         , inherit.aes = FALSE
         , color = "steelblue"
         , size = 0.8
-        , alpha = 0.6
-    ) +
-    geom_sf(
-        data = river$osm_polygons
-        , inherit.aes = FALSE
-        , fill = "steelblue"
-        # , size = 0.8
         , alpha = 0.6
     ) +
     geom_sf(
@@ -128,13 +133,6 @@ ggplot() +
         , size = 0.5
         , linetype = "dotdash"
         , alpha = 0.8
-    ) +
-    geom_sf(
-        data = small$osm_lines
-        , inherit.aes = FALSE
-        , color = col
-        , size = 0.4
-        , alpha = 0.5
     ) +
     geom_sf(
         data = minor$osm_lines
@@ -150,6 +148,14 @@ ggplot() +
         , size = 0.4
         , alpha = 0.8
     ) +
+    geom_sf(
+        data = bld$osm_polygons
+        , inherit.aes = FALSE
+        , color = "transparent"
+        , fill = "white"
+        , size = 0.8
+        , alpha = 0.8
+    ) +
     coord_sf(
         xlim = bbox[1,]
         , ylim = bbox[2,]
@@ -159,52 +165,44 @@ ggplot() +
     theme(
         plot.title = element_text(
             family = "lato"
-            , size = 28
+            , size = 40
             , face = "bold"
             , hjust = .5
             , colour = col
+            , margin = margin(15, r = 0, b = 0, l = 0, unit = "mm")
         )
         , plot.subtitle = element_text(
             family = "lato"
-            , size = 16
+            , size = 24
             , hjust = .5
-            , margin = margin(2, 0, 5, 0)
             , colour = col
         )
         , plot.caption = element_text(
             family = "lato"
+            , size = 16
             , vjust = 10
             , colour = col
+            , margin = margin(0, r = 0, b = 10, l = 0, unit = "mm")
         )
-
+        , plot.background = element_rect(fill = "black")
+        , panel.background = element_rect(fill = "black")
     ) +
-    labs(title = "Nürnberg"
-         , subtitle = paste0(
-             round(mean(bbox[2,]), 3), "°N / ",
-             round(mean(bbox[1,]), 3), "°E"
-         )
-         , caption = "© OpenStreetMap contributors"
+    labs(
+        title = "Nürnberg"
+        , subtitle = paste0(
+            round(mean(bbox[2,]), 3), "°N / ",
+            round(mean(bbox[1,]), 3), "°E"
+        )
+        , caption = "© OpenStreetMap contributors"
     )
 
 ggsave(
-    paste0("img/nuernberg_", bg, ".svg")
-    , device = "svg"
-    # , plot = p
-    , width = 600
-    , height = 600
-    , units = "mm"
-    , dpi = "print"
-    , bg = bg
-)
-
-ggsave(
-    paste0("img/nuernberg_", bg, ".jpg")
+    paste0("img/nuernberg_buildings_", bg, ".jpg")
     , device = "jpeg"
     # , plot = p
     , width = 600
     , height = 600
     , units = "mm"
-    , dpi = "retina"
+    , dpi = 300
     , bg = bg
 )
-
