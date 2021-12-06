@@ -10,7 +10,7 @@ library(sf)
 
 source("R/satellite_images_funs.R")
 
-## AOI definition and preparation ----
+## AOI import ----
 aoi_name = "putre"
 date = "2021-10-28" # Putre
 
@@ -18,19 +18,13 @@ date = "2021-10-28" # Putre
 # aoi_name = "eastern_alps"
 # aoi_name = "zugspitze"
 
-# aoi = mapedit::editMap()
-# st_write(
-#     aoi
-#     , dsn = paste0("aoi/aoi_", aoi_name, ".geojson")
-#     , delete_dsn = TRUE
-# )
-
 fls = list.files(
     "aoi"
     , pattern = "\\.geojson"
     , full.names = TRUE
 )
 aoi = st_read(fls[4])
+
 utm = st_centroid(aoi) |>
     st_coordinates() |>
     lonlat2UTM()

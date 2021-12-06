@@ -2,5 +2,7 @@
 #
 # check out:
 # - rayshader: https://www.rayshader.com/
-# - supercells: https://nowosad.github.io/supercells/
+# - Global Human Settlement, e.g.
+#   * https://github.com/ecomore2/ghsl
+#   * https://rpubs.com/dblalex/ghsl_raster
 
